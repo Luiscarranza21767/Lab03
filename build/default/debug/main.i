@@ -8,8 +8,8 @@
 ; Compilador: PIC-AS (v2.4), MPLAB X IDE (v6.00)
 ; Proyecto: Laboratorio 3 Interrupciones
 ; Hardware PIC16F887
-; Creado: 08/08/22
-; Última Modificación: 08/08/22
+; Creado: 09/08/22
+; Última Modificación: 15/08/22
 ; ******************************************************************************
 
 PROCESSOR 16F887
@@ -2459,7 +2459,8 @@ stk_offset SET 0
 auto_size SET 0
 ENDM
 # 7 "C:\\Program Files\\Microchip\\xc8\\v2.40\\pic\\include\\xc.inc" 2 3
-# 14 "main.s" 2
+# 13 "main.s" 2
+
 ; ******************************************************************************
 ; Palabra de configuración
 ; ******************************************************************************
@@ -2503,6 +2504,10 @@ PSECT udata_shr
     DS 1
  CONT1:
     DS 1
+ CONT2:
+    DS 1
+ CONT20MS:
+    DS 1
  bandera1:
     DS 1
 
@@ -2522,19 +2527,33 @@ PSECT CODE, delta=2, abs
  ORG 0x0004
 
 PUSH:
-
     MOVWF W_TEMP
     SWAPF STATUS, W
     MOVWF STATUS_TEMP
 
-RRBIF:
-    BTFSS INTCON, 0
+ISR:
+    BTFSC INTCON, 0
+    GOTO RRBIF
+    BTFSC INTCON, 2
+    GOTO RTMR0
     GOTO POP
-    BTFSS PORTB, 0
-    BSF bandera1, 0
-    BTFSS PORTB, 1
-    BSF bandera1, 1
+
+RTMR0:
+    BCF INTCON, 2
+    BANKSEL TMR0
+    INCF CONT20MS
+    MOVLW 179
+    MOVWF TMR0
+    GOTO POP
+
+RRBIF:
+    BANKSEL PORTB
+    BTFSS PORTB, 6
+    INCF PORTA
+    BTFSS PORTB, 7
+    DECF PORTA
     BCF INTCON, 0
+    GOTO POP
 
 POP:
     SWAPF STATUS_TEMP, W
@@ -2550,10 +2569,10 @@ PSECT CODE, delta=2, abs
  ORG 0x0100
 
 MAIN:
-    BANKSEL OSCCON ; Configuración del oscilador
+    BANKSEL OSCCON ; Configuración del oscilador 4MHz
     BSF OSCCON, 6 ; ((OSCCON) and 07Fh), 6
     BSF OSCCON, 5 ; ((OSCCON) and 07Fh), 5
-    BSF OSCCON, 4 ; ((OSCCON) and 07Fh), 4
+    BCF OSCCON, 4 ; ((OSCCON) and 07Fh), 4
 
     BSF OSCCON, 0 ; ((OSCCON) and 07Fh), 0 Reloj Interno
 
@@ -2562,16 +2581,18 @@ MAIN:
     CLRF ANSELH ; Todas las I/O son digitales
 
     BANKSEL TRISB
-    BSF TRISB, 1 ; ((PORTB) and 07Fh), 7 configurado como entrada
-    BSF TRISB, 0 ; ((PORTB) and 07Fh), 6 configurado como entrada
+
+
+    MOVLW 11000000B
+    MOVWF TRISB
     CLRF TRISA
     CLRF TRISC
     CLRF TRISD
     CLRF TRISE ; El resto de puertos configurados como salidas
 
     BANKSEL OPTION_REG
-
-
+    BCF OPTION_REG, 5 ; ((OPTION_REG) and 07Fh), 5 FOSC/4 modo temporizador
+    BCF OPTION_REG, 3 ; ((OPTION_REG) and 07Fh), 3 asignar presscaler para TMR0
 
     BSF OPTION_REG, 2
     BSF OPTION_REG, 1
@@ -2585,49 +2606,98 @@ MAIN:
     CLRF PORTC
     CLRF PORTD
     CLRF PORTE ; Iniciar todos los puertos en 0
-    CLRF CONT1
 
     BANKSEL INTCON
     BSF INTCON, 7 ; ((INTCON) and 07Fh), 7 Habilitar interrupciones globales
-    BCF INTCON, 5
+    BSF INTCON, 5 ; Habilitar interrupción de TMR0
     BSF INTCON, 3 ; ((INTCON) and 07Fh), 3 Habilitar interrupciones de PORTB
     BCF INTCON, 2
     BCF INTCON, 0
 
     BANKSEL WPUB
-    MOVLW 00000011B
+    MOVLW 11000000B
     MOVWF IOCB
     MOVWF WPUB
 
+    BANKSEL TMR0
+    MOVLW 179
+    MOVWF TMR0 ; Se carga el valor de TMR0
 
-
-
-
-
-    CLRF bandera1
+    CLRF CONT20MS
+    CLRF CONT1
+    CLRF CONT2
 
 LOOP:
-    BTFSC bandera1, 0
-    CALL Incremento
-    BTFSC bandera1, 1
-    CALL Decremento
+    INCF PORTB, F
+    GOTO CONTDIS
 
+VERIFICACION:
+    MOVF CONT20MS, W
+    SUBLW 50
+    BTFSS STATUS, 2
+    GOTO VERIFICACION
+    CLRF CONT20MS
     GOTO LOOP
 
-Incremento:
-    INCF PORTA
-    BTFSC PORTA, 4
-    CLRF PORTA
-    CLRF bandera1
+; ******************************************************************************
+; Subrutina para contador del display
+; ******************************************************************************
+
+CONTDIS:
+    BCF STATUS, 2
+    MOVF PORTB, W
+    SUBLW 10
+    BTFSC STATUS, 2
+    GOTO CONTDIS2
+    MOVF PORTB, W
+    CALL Table
+    MOVWF PORTD
+    GOTO VERIFICACION
+
+CONTDIS2:
+    BCF STATUS, 2
+    INCF CONT1, F
+    MOVF CONT1, W
+    SUBLW 6
+    BTFSC STATUS, 2
+    CALL LIMPIAR
+    MOVF CONT1, W
+    CALL Table
+    MOVWF CONT2
+    COMF CONT2, W
+    MOVWF PORTC
     RETURN
 
-Decremento:
-    DECF PORTA
-    MOVLW 0X0F
-    BTFSC PORTA, 0
-    MOVWF PORTA
-    CLRF bandera1
+LIMPIAR:
+    CLRF PORTD
+    CLRF CONT1
+    CLRF PORTC
     RETURN
+
+; ******************************************************************************
+; Tablas
+; ******************************************************************************
+Table:
+    CLRF PCLATH
+    BSF PCLATH, 0
+    ANDLW 0x0F
+    ADDWF PCL
+    RETLW 00111111B ; Regresa 0
+    RETLW 00000110B ; Regresa 1
+    RETLW 01011011B ; Regresa 2
+    RETLW 01001111B ; Regresa 3
+    RETLW 01100110B ; Regresa 4
+    RETLW 01101101B ; Regresa 5
+    RETLW 01111101B ; Regresa 6
+    RETLW 00000111B ; Regresa 7
+    RETLW 01111111B ; Regresa 8
+    RETLW 01101111B ; Regresa 9
+    RETLW 01110111B ; Regresa A
+    RETLW 01111111B ; Regresa B
+    RETLW 00111001B ; Regresa C
+    RETLW 00111111B ; Regresa D
+    RETLW 01111001B ; Regresa E
+    RETLW 01110001B ; Regresa F
 
 ;*******************************************************************************
 ; FIN DEL CÓDIGO

@@ -5,8 +5,8 @@
 ; Compilador: PIC-AS (v2.4), MPLAB X IDE (v6.00)
 ; Proyecto: Laboratorio 3 Interrupciones
 ; Hardware PIC16F887
-; Creado: 08/08/22
-; Última Modificación: 09/08/22
+; Creado: 09/08/22
+; Última Modificación: 15/08/22
 ; ******************************************************************************
 
 PROCESSOR 16F887
@@ -54,6 +54,8 @@ PSECT udata_shr
     DS 1
  CONT1:
     DS 1
+ CONT2:
+    DS 1
  CONT20MS:
     DS 1
  bandera1:
@@ -90,7 +92,7 @@ RTMR0:
     BCF INTCON, 2
     BANKSEL TMR0
     INCF CONT20MS
-    MOVLW 178
+    MOVLW 179
     MOVWF TMR0
     GOTO POP
     
@@ -109,7 +111,7 @@ POP:
     SWAPF W_TEMP, F
     SWAPF W_TEMP, W
     RETFIE
-        
+
 ; ******************************************************************************
 ; Código Principal
 ; ******************************************************************************
@@ -151,9 +153,10 @@ MAIN:
     BANKSEL PORTB
     CLRF PORTA
     CLRF PORTB
-    CLRF PORTC
     CLRF PORTD
     CLRF PORTE	    ; Iniciar todos los puertos en 0
+    MOVLW 11111111B
+    MOVWF PORTC
 
     BANKSEL INTCON
     BSF INTCON, 7   ; GIE Habilitar interrupciones globales
@@ -168,13 +171,16 @@ MAIN:
     MOVWF WPUB
     
     BANKSEL TMR0
-    MOVLW 178
+    MOVLW 179
     MOVWF TMR0	    ; Se carga el valor de TMR0
     
     CLRF CONT20MS
+    CLRF CONT1
+    CLRF CONT2
     
 LOOP:
     INCF PORTB, F
+    GOTO CONTDIS
 
 VERIFICACION:
     MOVF CONT20MS, W
@@ -182,25 +188,70 @@ VERIFICACION:
     BTFSS STATUS, 2
     GOTO VERIFICACION
     CLRF CONT20MS
-
     GOTO LOOP
     
-;   PRUEBA CON BANDERA    
-;    BTFSC bandera1, 0
-;    CALL Incremento
-;    BTFSC bandera1, 1
-;    CALL Decremento
+; ******************************************************************************
+; Subrutina para contador del display
+; ******************************************************************************  
+
+CONTDIS:
+    BCF STATUS, 2
+    MOVF PORTB, W
+    ANDLW 0x0F
+    SUBLW 10
+    BTFSC STATUS, 2
+    CALL CONTDIS2
+    MOVF PORTB, W
+    CALL Table
+    MOVWF PORTD
+    GOTO VERIFICACION
+
+CONTDIS2:
+    CLRF PORTB
+    BCF STATUS, 2
+    INCF CONT1, F
+    MOVF CONT1, W
+    SUBLW 6
+    BTFSC STATUS, 2
+    CALL LIMPIAR
+    MOVF CONT1, W
+    CALL Table
+    MOVWF CONT2
+    COMF CONT2, W
+    MOVWF PORTC
+    RETURN
     
-; SUBRUTINAS PARA BANDERA DE CONTADOR
-;Incremento:
-;    INCF PORTA, F
-;    CLRF bandera1
-;    RETURN
-;    
-;Decremento:
-;    DECF PORTA, F
-;    CLRF bandera1
-;    RETURN
+LIMPIAR:
+    CLRF PORTD
+    CLRF CONT1
+    CLRF PORTC
+    CLRF CONT2
+    RETURN
+
+; ******************************************************************************
+; Tablas
+; ******************************************************************************   
+Table:
+    CLRF PCLATH
+    BSF PCLATH, 0
+    ANDLW 0x0F
+    ADDWF PCL
+    RETLW 00111111B ; Regresa 0
+    RETLW 00000110B ; Regresa 1
+    RETLW 01011011B ; Regresa 2
+    RETLW 01001111B ; Regresa 3
+    RETLW 01100110B ; Regresa 4
+    RETLW 01101101B ; Regresa 5
+    RETLW 01111101B ; Regresa 6
+    RETLW 00000111B ; Regresa 7
+    RETLW 01111111B ; Regresa 8
+    RETLW 01101111B ; Regresa 9    
+    RETLW 01110111B ; Regresa A
+    RETLW 01111111B ; Regresa B
+    RETLW 00111001B ; Regresa C
+    RETLW 00111111B ; Regresa D
+    RETLW 01111001B ; Regresa E
+    RETLW 01110001B ; Regresa F
     
 ;*******************************************************************************
 ; FIN DEL CÓDIGO
