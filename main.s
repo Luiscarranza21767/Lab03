@@ -48,17 +48,15 @@ PROCESSOR 16F887
 ; ******************************************************************************
 				
 PSECT udata_shr
- W_TEMP:
+ W_TEMP:	; Variable para almacenar W durante interrupciones
     DS 1
- STATUS_TEMP:
+ STATUS_TEMP:	; Variable para almacenar STATUS durante interrupciones
     DS 1
- CONT1:
+ CONT1:		; Variable que se utiliza para controlar 1 display
     DS 1
- CONT2:
+ CONT2:		; Variable auxiliar para el aumento en el display
     DS 1
- CONT20MS:
-    DS 1
- bandera1:
+ CONT20MS:	; Variable para TMR0
     DS 1
     
 ; ******************************************************************************
@@ -76,36 +74,36 @@ PSECT CODE, delta=2, abs
 PSECT CODE, delta=2, abs
  ORG 0x0004
  
-PUSH:
-    MOVWF W_TEMP
+PUSH:			; Almacenar temporalmente W y STATUS
+    MOVWF W_TEMP	
     SWAPF STATUS, W
     MOVWF STATUS_TEMP
     
 ISR:
-    BTFSC INTCON, 0
-    GOTO RRBIF
-    BTFSC INTCON, 2
-    GOTO RTMR0
+    BTFSC INTCON, 0	; Revisa la bandera de interrupción en puerto B
+    GOTO RRBIF		; Si está encendida llama la etiqueta
+    BTFSC INTCON, 2	; Revisa la bandera de interrupción en TMR0
+    GOTO RTMR0		; si está encendida llama la etiqueta
     GOTO POP
 
 RTMR0:
-    BCF INTCON, 2
-    BANKSEL TMR0
-    INCF CONT20MS
-    MOVLW 179
-    MOVWF TMR0
+    BCF INTCON, 2	; Limpia la bandera de interrupción
+    BANKSEL TMR0	
+    INCF CONT20MS	; Incrementa la variable del TMR0
+    MOVLW 179		; Carga el valor de n al TMR0
+    MOVWF TMR0		
     GOTO POP
     
 RRBIF:
     BANKSEL PORTB
-    BTFSS PORTB, 6
-    INCF PORTA
-    BTFSS PORTB, 7
-    DECF PORTA
-    BCF INTCON, 0
+    BTFSS PORTB, 6	; Revisa si se presionó el botón de incremento
+    INCF PORTA		; Incrementa el puerto A
+    BTFSS PORTB, 7	; Revisa si se presionó el botón de decremento
+    DECF PORTA		; Decrementa el peurto A
+    BCF INTCON, 0	; Limpia la bandera de interrupción del puerto B
     GOTO POP
     
-POP: 
+POP:			    ; Regresar valores de W y de STATUS
     SWAPF STATUS_TEMP, W
     MOVWF STATUS
     SWAPF W_TEMP, F
@@ -131,14 +129,11 @@ MAIN:
     CLRF ANSELH	    ; Todas las I/O son digitales
     
     BANKSEL TRISB
-    //BSF TRISB, 7    ; RB7 configurado como entrada
-    //BSF TRISB, 6    ; RB6 configurado como entrada
-    MOVLW 11000000B
-    MOVWF TRISB
+    MOVLW 11000000B ; El bit 6 y 7 son entradas, el resto salidas
+    MOVWF TRISB		
     CLRF TRISA
     CLRF TRISC
-    CLRF TRISD
-    CLRF TRISE	    ; El resto de puertos configurados como salidas
+    CLRF TRISD	    ; El resto de puertos configurados como salidas
     
     BANKSEL OPTION_REG
     BCF OPTION_REG, 5	; T0CS FOSC/4 modo temporizador
@@ -155,23 +150,23 @@ MAIN:
     CLRF PORTB
     CLRF PORTD
     CLRF PORTE	    ; Iniciar todos los puertos en 0
-    MOVLW 11111111B
+    MOVLW 11111111B ; El puerto C inicia en 1 ya que usa ánodo común
     MOVWF PORTC
 
     BANKSEL INTCON
     BSF INTCON, 7   ; GIE Habilitar interrupciones globales
     BSF INTCON, 5   ; Habilitar interrupción de TMR0
     BSF INTCON, 3   ; RBIE Habilitar interrupciones de PORTB
-    BCF INTCON, 2
-    BCF INTCON, 0
+    BCF INTCON, 2   ; Bandera T0IF apagada
+    BCF INTCON, 0   ; Bandera de interrupción de puerto B apagada
     
     BANKSEL WPUB
-    MOVLW 11000000B
+    MOVLW 11000000B ; Solo bit 7 y 6 son entradas con pull-up e ITO
     MOVWF IOCB
     MOVWF WPUB
     
     BANKSEL TMR0
-    MOVLW 179
+    MOVLW 179	    
     MOVWF TMR0	    ; Se carga el valor de TMR0
     
     CLRF CONT20MS
@@ -179,55 +174,57 @@ MAIN:
     CLRF CONT2
     
 LOOP:
-    INCF PORTB, F
-    GOTO CONTDIS
+    INCF PORTB, F   ; Incrementa el contador del TMR0
+    GOTO CONTDIS    ; Se dirige a la etiqueta del contador del display
 
 VERIFICACION:
-    MOVF CONT20MS, W
-    SUBLW 50
-    BTFSS STATUS, 2
-    GOTO VERIFICACION
-    CLRF CONT20MS
+    MOVF CONT20MS, W	; Carga el valor de la variable a W
+    SUBLW 50		; Resta el valor a 50
+    BTFSS STATUS, 2	; Revisa si el resultado es 0
+    GOTO VERIFICACION	; Si no es 0 regresa a verificación
+    CLRF CONT20MS	; Si es 0 limpia la variable y vuelve al loop
     GOTO LOOP
     
 ; ******************************************************************************
-; Subrutina para contador del display
+; Subrutinas para contador del display
 ; ******************************************************************************  
 
 CONTDIS:
-    BCF STATUS, 2
-    MOVF PORTB, W
-    ANDLW 0x0F
-    SUBLW 10
-    BTFSC STATUS, 2
-    CALL CONTDIS2
-    MOVF PORTB, W
-    CALL Table
-    MOVWF PORTD
+    BCF STATUS, 2	; Limpia el bit 2 de STATUS
+    MOVF PORTB, W	; Carga el valor de PORTB a W
+    ANDLW 0x0F		; Realiza un AND para asegurarse que no está fuera del 
+			; rango
+    SUBLW 10		; Resta el valor a 10
+    BTFSC STATUS, 2	; Si el resultado es 0 llama a la subrutina para el otro
+			; display
+    CALL CONTDIS2	
+    MOVF PORTB, W	; Mueve el valor de PORTB a W
+    CALL Table		
+    MOVWF PORTD		; Carga el valor que regresó la tabla a PORTD
     GOTO VERIFICACION
 
 CONTDIS2:
-    CLRF PORTB
-    BCF STATUS, 2
-    INCF CONT1, F
-    MOVF CONT1, W
-    SUBLW 6
-    BTFSC STATUS, 2
+    CLRF PORTB		; Limpia puerto B 
+    BCF STATUS, 2	; Limpia el bit 2 de STATUS
+    INCF CONT1, F	; Incrementa la variable para el segundo display
+    MOVF CONT1, W	; Mueve el valor de la variable a W
+    SUBLW 6		; Le resta el valor a 6
+    BTFSC STATUS, 2	; Si el resultado es 0 llama a subrutina LIMPIAR
     CALL LIMPIAR
-    MOVF CONT1, W
-    CALL Table
-    MOVWF CONT2
-    COMF CONT2, W
-    MOVWF PORTC
+    MOVF CONT1, W	; Mueve el valor del CONT1 a W
+    CALL Table		
+    MOVWF CONT2		; Carga el valor de la tabla a CONT2
+    COMF CONT2, W	; Cátodo común necesita utilizar el complemento
+    MOVWF PORTC		; Carga el valor a PORTC
     RETURN
     
 LIMPIAR:
     CLRF PORTD
     CLRF CONT1
     CLRF PORTC
-    CLRF CONT2
+    CLRF CONT2	; Limpia todos los puertos y las variables
     RETURN
-
+    
 ; ******************************************************************************
 ; Tablas
 ; ******************************************************************************   
