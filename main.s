@@ -58,7 +58,8 @@ PSECT udata_shr
     DS 1
  CONT20MS:	; Variable para TMR0
     DS 1
-    
+ FLAG1:
+    DS 1
 ; ******************************************************************************
 ; Vector Reset
 ; ******************************************************************************
@@ -97,9 +98,11 @@ RTMR0:
 RRBIF:
     BANKSEL PORTB
     BTFSS PORTB, 6	; Revisa si se presionó el botón de incremento
-    INCF PORTA		; Incrementa el puerto A
+    BSF FLAG1, 0	; Activa la bandera para el incremento
+    //INCF PORTA		; Incrementa el puerto A
     BTFSS PORTB, 7	; Revisa si se presionó el botón de decremento
-    DECF PORTA		; Decrementa el peurto A
+    BSF FLAG1, 1	; Activa la bandera para el decremento
+    //DECF PORTA		; Decrementa el peurto A
     BCF INTCON, 0	; Limpia la bandera de interrupción del puerto B
     GOTO POP
     
@@ -173,9 +176,14 @@ MAIN:
     CLRF CONT20MS
     CLRF CONT1
     CLRF CONT2
+    CLRF FLAG1
     
 LOOP:
     INCF PORTB, F   ; Incrementa el contador del TMR0
+    BTFSC FLAG1, 0  ; Revisa si la bandera de incremento está activada
+    CALL INCREMENTO
+    BTFSC FLAG1, 1  ; Revisa si la bandera de decremento está activada
+    CALL DECREMENTO
     GOTO CONTDIS    ; Se dirige a la etiqueta del contador del display
 
 VERIFICACION:
@@ -187,7 +195,7 @@ VERIFICACION:
     GOTO LOOP
     
 ; ******************************************************************************
-; Subrutinas para contador del display
+; Parte para el contador del display
 ; ******************************************************************************  
 
 CONTDIS:
@@ -224,6 +232,20 @@ LIMPIAR:
     CLRF CONT1
     CLRF PORTC
     CLRF CONT2	; Limpia todos los puertos y las variables
+    RETURN
+    
+; ******************************************************************************
+; Subrutinas para aumento y decremento en el contador
+; ****************************************************************************** 
+    
+INCREMENTO:
+    INCF PORTA, F   ; Incrementa el valor del puerto
+    CLRF FLAG1	    ; Limpia la bandera
+    RETURN
+    
+DECREMENTO:
+    DECF PORTA, F   ; Decrementa el valor del puerto
+    CLRF FLAG1	    ; Limpia la bandera
     RETURN
     
 ; ******************************************************************************
