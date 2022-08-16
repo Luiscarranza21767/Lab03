@@ -2599,9 +2599,10 @@ MAIN:
     CLRF PORTA
     CLRF PORTB
     CLRF PORTD
+    CLRF PORTC
     CLRF PORTE ; Iniciar todos los puertos en 0
-    MOVLW 11111111B ; El puerto C inicia en 1 ya que usa ánodo común
-    MOVWF PORTC
+; MOVLW 11111111B ; El puerto C inicia en 1 ya que usa ánodo común
+; MOVWF PORTC
 
     BANKSEL INTCON
     BSF INTCON, 7 ; ((INTCON) and 07Fh), 7 Habilitar interrupciones globales
@@ -2663,8 +2664,8 @@ CONTDIS2:
     CALL LIMPIAR
     MOVF CONT1, W ; Mueve el valor del CONT1 a W
     CALL Table
-    MOVWF CONT2 ; Carga el valor de la tabla a CONT2
-    COMF CONT2, W ; Cátodo común necesita utilizar el complemento
+; MOVWF CONT2 ; Carga el valor de la tabla a CONT2
+; COMF CONT2, W ; Cátodo común necesita utilizar el complemento
     MOVWF PORTC ; Carga el valor a PORTC
     RETURN
 
